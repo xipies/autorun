@@ -37,11 +37,15 @@ ashita.register_event('command', function(cmd, nType)
         if (#args > 1)  then
             if (args[2] == 'on')  then
                 setAutoRun(true);
+                return true;
             elseif (args[2] == 'off')  then
                 setAutoRun(false);
+                return true;
             end
         end
     end
+
+    return false;
 end);
 
 ashita.register_event('load', function()
