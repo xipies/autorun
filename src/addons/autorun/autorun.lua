@@ -11,10 +11,12 @@ local function setAutoRun(value)
     if (value) then
         local entity = AshitaCore:GetDataManager():GetEntity();
         local party = AshitaCore:GetDataManager():GetParty();
-        local yaw = entity:GetLocalYaw(party:GetPartyMemberTargetIndex(0));
-        local calc_x = math.cos(yaw) * 0.08333333333333333333333333333333;
+        local selfindex = party:GetPartyMemberTargetIndex(0);
+        local yaw = entity:GetLocalYaw(selfindex);
+        local speed = entity:GetMovementSpeed(selfindex);
+        local calc_x = math.cos(yaw) * speed * 0.05 * 0.33333333333333333333333333333333;
         local calc_y = 0;
-        local calc_z = 0 - (math.sin(yaw) * 0.08333333333333333333333333333333);
+        local calc_z = 0 - (math.sin(yaw) * speed * 0.05 * 0.33333333333333333333333333333333);
         mem.WriteFloat(auto_follow + 12, calc_x); -- DirectionX
         mem.WriteFloat(auto_follow + 16, calc_y); -- DirectionY
         mem.WriteFloat(auto_follow + 20, calc_z); -- DirectionZ
