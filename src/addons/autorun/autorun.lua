@@ -14,6 +14,11 @@ local function setAutoRun(value)
         local selfindex = party:GetPartyMemberTargetIndex(0);
         local yaw = entity:GetLocalYaw(selfindex);
         local speed = entity:GetMovementSpeed(selfindex);
+        local status = entity:GetStatus(selfindex);
+        -- On chocobo, so double speed
+        if (status == 5) then
+            speed = speed * 2;
+        end
         local calc_x = math.cos(yaw) * speed * 0.05 * 0.33333333333333333333333333333333;
         local calc_y = 0;
         local calc_z = 0 - (math.sin(yaw) * speed * 0.05 * 0.33333333333333333333333333333333);
