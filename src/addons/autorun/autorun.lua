@@ -5,8 +5,35 @@ _addon.version  = '3.1.0';
 
 require 'common'
 
+-- Alias for on-top font object must be last alphabetically
+local font_alias = '__autorun_addon_zz';
+local font_alias_o1 = '__autorun_addon_o1';
+local font_alias_o2 = '__autorun_addon_o2';
+local font_alias_o3 = '__autorun_addon_o3';
+local font_alias_o4 = '__autorun_addon_o4';
+
 local auto_follow;
 local last_follow;
+local last_follow_cache;
+local follow_id_cache;
+
+local default_config = 
+{
+    font =
+    {
+        family          = 'Arial',
+        size            = 10,
+        color           = 0xFFE0E0E0,
+        position        = { -180, 44 },
+        bold            = true,
+        italic          = true,
+        outline_enabled = true,
+        outline_color   = 0xFF222222,
+        outline_size    = 1,
+    },
+    show = true
+};
+local autorun_config = default_config;
 
 local function write_float_hack(addr, value)
     local packed = struct.pack('f', value);
@@ -81,6 +108,69 @@ local function clearFollow()
     last_follow = nil;
 end
 
+local function createFont(conf, alias, color, x, y)
+    -- Create the font object..
+    local f = AshitaCore:GetFontManager():Create(alias);
+    f:SetColor(color);
+    f:SetFontFamily(conf.font.family);
+    f:SetFontHeight(conf.font.size);
+    f:SetBold(conf.font.bold);
+    f:SetItalic(conf.font.italic);
+    f:SetPositionX(x);
+    f:SetPositionY(y);
+    f:SetText('');
+    f:SetVisibility(true);
+end
+
+local function createFontAll(conf)
+    local x = conf.font.position[1];
+    local y = conf.font.position[2];
+    local w = conf.font.outline_size;
+
+    if (conf.font.outline_enabled) then
+        createFont(conf, font_alias_o1, conf.font.outline_color, x - w, y - w);
+        createFont(conf, font_alias_o2, conf.font.outline_color, x - w, y + w);
+        createFont(conf, font_alias_o3, conf.font.outline_color, x + w, y - w);
+        createFont(conf, font_alias_o4, conf.font.outline_color, x + w, y + w);
+    end
+
+    createFont(conf, font_alias, conf.font.color, x, y);
+end
+
+local function deleteFont(conf, alias)
+    -- Delete the font object..
+    AshitaCore:GetFontManager():Delete(alias);
+end
+
+local function deleteFontAll(conf)
+    if (conf.font.outline_enabled) then
+        deleteFont(conf, font_alias_o1);
+        deleteFont(conf, font_alias_o2);
+        deleteFont(conf, font_alias_o3);
+        deleteFont(conf, font_alias_o4);
+    end
+
+    deleteFont(conf, font_alias);
+end
+
+local function setText(conf, alias, text)
+    local f = AshitaCore:GetFontManager():Get(alias);
+    if (f == nil) then return; end
+
+    f:SetText(text);
+end
+
+local function setTextAll(conf, text)
+    if (conf.font.outline_enabled) then
+        setText(conf, font_alias_o1, text);
+        setText(conf, font_alias_o2, text);
+        setText(conf, font_alias_o3, text);
+        setText(conf, font_alias_o4, text);
+    end
+
+    setText(conf, font_alias, text);
+end
+
 ashita.register_event('command', function(cmd, nType)
     local args = cmd:args();
 
@@ -125,7 +215,64 @@ ashita.register_event('load', function()
     else
         auto_follow = ashita.memory.read_uint32(ptr + 25);
     end
+
+    -- Load the configuration file..
+    autorun_config = ashita.settings.load_merged(_addon.path .. '/settings/settings.json', autorun_config);
+
+    createFontAll(autorun_config);
 end );
 
 ashita.register_event('unload', function()
+    -- Get the font object..
+    local f = AshitaCore:GetFontManager():Get(font_alias);
+
+    -- Update the configuration position..
+    autorun_config.font.position = { f:GetPositionX(), f:GetPositionY() };
+
+    -- Save the configuration file..
+    ashita.settings.save(_addon.path .. '/settings/settings.json', autorun_config);
+
+    deleteFontAll(autorun_config);
 end );
+
+ashita.register_event('render', function()
+    if (autorun_config.show ~= true) then return; end
+
+    -- Detect change
+    local follow_id = ashita.memory.read_uint32(auto_follow + 36);
+    if (follow_id == follow_id_cache and last_follow == last_follow_cache) then return; end
+
+    -- Ensure we have a valid player..
+    local party = AshitaCore:GetDataManager():GetParty();
+    if (party:GetMemberActive(0) == false or party:GetMemberServerId(0) == 0) then
+        setTextAll(autorun_config, '');
+        return;
+    end
+
+    local str = '';
+    local found = false;
+    local entity;
+
+    -- Currently following
+    if (found == false and follow_id ~= nil and follow_id ~= 0) then
+        entity = findEntity(follow_id);
+        if (entity ~= nil) then
+            str = entity.Name;
+            found = true;
+        end
+    end
+
+    -- Paused following
+    if (found == false and last_follow ~= nil and last_follow ~= 0) then
+        entity = findEntity(last_follow);
+        if (entity ~= nil) then
+            str = '* ' .. entity.Name;
+            found = true;
+        end
+    end
+
+    follow_id_cache = follow_id;
+    last_follow_cache = last_follow;
+
+    setTextAll(autorun_config, str);
+end);
