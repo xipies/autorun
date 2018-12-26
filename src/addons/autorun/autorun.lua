@@ -108,7 +108,7 @@ local function clearFollow()
     last_follow = nil;
 end
 
-local function createFont(conf, alias, color, x, y)
+local function createFont(conf, alias, color, x, y, parent)
     -- Create the font object..
     local f = AshitaCore:GetFontManager():Create(alias);
     f:SetColor(color);
@@ -120,6 +120,12 @@ local function createFont(conf, alias, color, x, y)
     f:SetPositionY(y);
     f:SetText('');
     f:SetVisibility(true);
+
+    if (parent ~= nil) then
+        f:SetParent(parent);
+    end
+
+    return f;
 end
 
 local function createFontAll(conf)
@@ -127,14 +133,14 @@ local function createFontAll(conf)
     local y = conf.font.position[2];
     local w = conf.font.outline_size;
 
-    if (conf.font.outline_enabled) then
-        createFont(conf, font_alias_o1, conf.font.outline_color, x - w, y - w);
-        createFont(conf, font_alias_o2, conf.font.outline_color, x - w, y + w);
-        createFont(conf, font_alias_o3, conf.font.outline_color, x + w, y - w);
-        createFont(conf, font_alias_o4, conf.font.outline_color, x + w, y + w);
-    end
+    local f = createFont(conf, font_alias, conf.font.color, x, y, nil);
 
-    createFont(conf, font_alias, conf.font.color, x, y);
+    if (conf.font.outline_enabled) then
+        createFont(conf, font_alias_o1, conf.font.outline_color, 0 - w, 0 - w, f);
+        createFont(conf, font_alias_o2, conf.font.outline_color, 0 - w, 0 + w, f);
+        createFont(conf, font_alias_o3, conf.font.outline_color, 0 + w, 0 - w, f);
+        createFont(conf, font_alias_o4, conf.font.outline_color, 0 + w, 0 + w, f);
+    end
 end
 
 local function deleteFont(conf, alias)
