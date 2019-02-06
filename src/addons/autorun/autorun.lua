@@ -5,6 +5,8 @@ _addon.version  = '3.1.0';
 
 require 'common'
 
+local DEFAULT_FOLLOW_ID = 0x4000000;
+
 -- Alias for on-top font object must be last alphabetically
 local font_alias = '__autorun_addon_zz';
 local font_alias_o1 = '__autorun_addon_o1';
@@ -29,7 +31,7 @@ local default_config =
         italic          = true,
         outline_enabled = true,
         outline_color   = 0xFF222222,
-        outline_size    = 1,
+        outline_size    = 1
     },
     show = true
 };
@@ -74,7 +76,7 @@ local function setAutoRunEx(value, follow_id)
 end
 
 local function setAutoRun(value)
-    setAutoRunEx(value, 0x4000000);
+    setAutoRunEx(value, DEFAULT_FOLLOW_ID);
 end
 
 local function findEntity(server_id)
@@ -90,12 +92,15 @@ end
 
 local function pauseFollow()
     local follow_id = ashita.memory.read_uint32(auto_follow + 36);
-    last_follow = follow_id;
+    -- Verify follow target, otherwise pausing when already paused with have the effect of clearing instead
+    if (follow_id ~= nil and follow_id ~= 0 and follow_id ~= DEFAULT_FOLLOW_ID) then
+        last_follow = follow_id;
+    end
     setAutoRun(false);
 end
 
 local function resumeFollow()
-    if (last_follow ~= nil and last_follow ~= 0) then
+    if (last_follow ~= nil and last_follow ~= 0 and last_follow ~= DEFAULT_FOLLOW_ID) then
         local entity = findEntity(last_follow);
         -- Should only try to follow if target is nearby
         if (entity ~= nil and entity.WarpPointer ~= 0) then
@@ -260,20 +265,32 @@ ashita.register_event('render', function()
     local entity;
 
     -- Currently following
-    if (found == false and follow_id ~= nil and follow_id ~= 0) then
-        entity = findEntity(follow_id);
-        if (entity ~= nil) then
-            str = entity.Name;
-            found = true;
+    if (found == false) then
+        if (follow_id ~= nil and follow_id ~= 0 and follow_id ~= DEFAULT_FOLLOW_ID) then
+            entity = findEntity(follow_id);
+            if (entity ~= nil) then
+                str = entity.Name;
+                found = true;
+            end
         end
     end
 
     -- Paused following
-    if (found == false and last_follow ~= nil and last_follow ~= 0) then
-        entity = findEntity(last_follow);
-        if (entity ~= nil) then
-            str = '* ' .. entity.Name;
-            found = true;
+    if (found == false) then
+        if (last_follow ~= nil and last_follow ~= 0 and last_follow ~= DEFAULT_FOLLOW_ID) then
+            entity = findEntity(last_follow);
+            if (entity ~= nil) then
+                str = '* ' .. entity.Name;
+                found = true;
+            end
+        end
+    else
+        if (last_follow ~= nil and last_follow ~= 0 and last_follow ~= DEFAULT_FOLLOW_ID) then
+            -- Detected following someone else, so clear out the paused target
+            -- Not doing this might be confusing
+            -- An option should be added if going to allow an entity different
+            -- from the one currently being followed to be kept as the paused target
+            clearFollow();
         end
     end
 
