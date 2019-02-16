@@ -33,7 +33,8 @@ local default_config =
         outline_color   = 0xFF222222,
         outline_size    = 1
     },
-    show = true
+    show = true,
+    autocancel = false
 };
 local autorun_config = default_config;
 
@@ -45,7 +46,7 @@ local function write_float_hack(addr, value)
     ashita.memory.write_array(addr, unpacked);
 end
 
-local function setAutoRunEx(value, follow_id)
+local function setAutoRunEx(value, follow_id, reverse)
     if (value) then
         local entity = AshitaCore:GetDataManager():GetEntity();
         local party = AshitaCore:GetDataManager():GetParty();
@@ -53,6 +54,14 @@ local function setAutoRunEx(value, follow_id)
         local yaw = entity:GetLocalYaw(selfindex);
         local speed = entity:GetSpeed(selfindex);
         local status = entity:GetStatus(selfindex);
+        -- Reverse direction (run away)
+        if (reverse) then
+            if (yaw < 0) then
+                yaw = yaw + math.pi;
+            else
+                yaw = yaw - math.pi;
+            end
+        end
         -- On chocobo, so double speed
         if (status == 5) then
             speed = speed * 2;
@@ -76,7 +85,11 @@ local function setAutoRunEx(value, follow_id)
 end
 
 local function setAutoRun(value)
-    setAutoRunEx(value, DEFAULT_FOLLOW_ID);
+    setAutoRunEx(value, DEFAULT_FOLLOW_ID, false);
+end
+
+local function setAutoRunAway(value)
+    setAutoRunEx(value, DEFAULT_FOLLOW_ID, true);
 end
 
 local function findEntity(server_id)
@@ -104,7 +117,7 @@ local function resumeFollow()
         local entity = findEntity(last_follow);
         -- Should only try to follow if target is nearby
         if (entity ~= nil and entity.WarpPointer ~= 0) then
-            setAutoRunEx(true, last_follow);
+            setAutoRunEx(true, last_follow, false);
         end
     end
 end
@@ -194,6 +207,9 @@ ashita.register_event('command', function(cmd, nType)
                 elseif (args[2] == 'off')  then
                     setAutoRun(false);
                     return true;
+                elseif (args[2] == 'away')  then
+                    setAutoRunAway(true);
+                    return true;
                 end
             end
         elseif (args[1] == '/pausefollow' or args[1] == '/pfollow') then
@@ -249,8 +265,10 @@ end );
 ashita.register_event('render', function()
     if (autorun_config.show ~= true) then return; end
 
-    -- Detect change
+    local is_autorun = ashita.memory.read_uint8(auto_follow + 41);
     local follow_id = ashita.memory.read_uint32(auto_follow + 36);
+
+    -- Detect change
     if (follow_id == follow_id_cache and last_follow == last_follow_cache) then return; end
 
     -- Ensure we have a valid player..
@@ -291,6 +309,13 @@ ashita.register_event('render', function()
             -- An option should be added if going to allow an entity different
             -- from the one currently being followed to be kept as the paused target
             clearFollow();
+        end
+    end
+
+    if (is_autorun == 1 and follow_id_cache ~= nil and follow_id == DEFAULT_FOLLOW_ID and follow_id ~= follow_id_cache) then
+        -- Detected no longer following a target
+        if (autorun_config.autocancel) then
+            setAutoRun(false);
         end
     end
 
